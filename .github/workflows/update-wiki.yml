@@ -2,15 +2,11 @@ name: Update Wiki
 
 on:
   push:
-    branches:
-      - main
-    paths:
-      - 'docs/**'
+    branches: [ main ]
+    paths: [ 'docs/**' ]
   pull_request:
-    types: [closed]
-    paths:
-      - 'docs/**'
-  # Allow manual runs for diagnostics and one-off pushes
+    types: [ closed ]
+    paths: [ 'docs/**' ]
   workflow_dispatch: {}
 
 permissions:
@@ -18,7 +14,6 @@ permissions:
 
 jobs:
   update-wiki:
-    # Only run for push events, or for pull_request closed events where the PR was merged.
     if: ${{ github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.pull_request.merged == true) }}
     runs-on: ubuntu-latest
     steps:
@@ -49,6 +44,40 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Fail early if DEPLOY_WIKI_TOKEN is missing
+        env:
+          DEPLOY_WIKI_TOKEN: ${{ secrets.DEPLOY_WIKI_TOKEN }}
+        run: |
+          if [ -z "$DEPLOY_WIKI_TOKEN" ]; then
+            echo "ERROR: DEPLOY_WIKI_TOKEN repository secret is not set."
+            echo "Create it at: Settings → Secrets and variables → Actions → New repository secret"
+            echo "Name: DEPLOY_WIKI_TOKEN"
+            echo "Value: a personal access token (PAT) with 'Contents: Write' for this repository (or 'repo' scope for classic PATs)."
+            exit 1
+          fi
+
+      - name: Debug: print event info
+        run: |
+          echo "GITHUB_EVENT_NAME=$GITHUB_EVENT_NAME"
+          echo "GITHUB_REF=$GITHUB_REF"
+          echo "GITHUB_SHA=$GITHUB_SHA"
+          echo "Event payload path: $GITHUB_EVENT_PATH"
+          if [ -f "$GITHUB_EVENT_PATH" ]; then echo "--- event payload ---"; cat "$GITHUB_EVENT_PATH"; echo "--- end payload ---"; fi
+
+      - name: Debug: list changed files (best-effort)
+        id: list_changed
+        run: |
+          # fetch enough history to inspect the commit
+          git fetch --no-tags --prune --depth=5 origin "${{ github.ref }}" || true
+          echo "Files changed in this commit/PR:"
+          git --no-pager show --name-only --pretty="" "${{ github.sha }}" || git ls-files | sed -n '1,200p'
+
+      - name: Add changed files to job summary
+        if: always()
+        run: |
+          echo "### Changed files" >> "$GITHUB_STEP_SUMMARY"
+          git --no-pager show --name-only --pretty="" "${{ github.sha }}" >> "$GITHUB_STEP_SUMMARY" || git ls-files | sed -n '1,200p' >> "$GITHUB_STEP_SUMMARY"
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -63,4 +92,4 @@ jobs:
           # Use a deploy PAT stored in repository secrets (create secret DEPLOY_WIKI_TOKEN)
           GITHUB_TOKEN: ${{ secrets.DEPLOY_WIKI_TOKEN }}
         run: |
-          node scripts/init-wiki.js --docs docs/wiki
+          node scripts/init-wiki.js --docs docs

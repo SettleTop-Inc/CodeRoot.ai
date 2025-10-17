@@ -81,6 +81,21 @@ async function main() {
   console.log('Remote:', opts.remote);
   if (opts.dryRun) console.log('Dry run: no git clone/commit/push will be executed');
 
+  const isCI = process.env.GITHUB_ACTIONS === 'true' || process.env.CI === 'true';
+
+  // If running in CI, ensure we have a token to authenticate pushes. Prefer DEPLOY_WIKI_TOKEN but fall back to GITHUB_TOKEN.
+  if (isCI && !opts.dryRun) {
+    if (!process.env.DEPLOY_WIKI_TOKEN && !process.env.GITHUB_TOKEN) {
+      console.error('ERROR: No authentication token available in CI.');
+      console.error('Set repository secret DEPLOY_WIKI_TOKEN (a PAT with Contents: write) or ensure GITHUB_TOKEN is available.');
+      process.exit(20);
+    }
+    // If DEPLOY_WIKI_TOKEN is provided, prefer it by setting GITHUB_TOKEN for downstream code that reads it.
+    if (process.env.DEPLOY_WIKI_TOKEN) {
+      process.env.GITHUB_TOKEN = process.env.DEPLOY_WIKI_TOKEN;
+    }
+  }
+
   if (!fs.existsSync(docsDir)) {
     console.error('Docs wiki folder not found at', docsDir);
     process.exitCode = 2;
@@ -105,7 +120,6 @@ async function main() {
   }
 
   // If running in CI with a GITHUB_TOKEN available, inject it into an https wiki URL so git can authenticate.
-  const isCI = process.env.GITHUB_ACTIONS === 'true' || process.env.CI === 'true';
   let maskedWikiUrl = wikiUrl;
   if (wikiUrl && isCI && process.env.GITHUB_TOKEN) {
     try {
