@@ -62,6 +62,19 @@ jobs:
             exit 1
           fi
 
+      - name: Echo docs trigger
+        run: echo "Update Wiki workflow triggered for docs changes"
+
+      - name: Fail early if DEPLOY_WIKI_TOKEN is missing
+        env:
+          DEPLOY_WIKI_TOKEN: ${{ secrets.DEPLOY_WIKI_TOKEN }}
+        run: |
+          if [ -z "$DEPLOY_WIKI_TOKEN" ]; then
+            echo "WARNING: DEPLOY_WIKI_TOKEN is not set; the workflow will not be able to push to the wiki."
+            echo "Set the DEPLOY_WIKI_TOKEN secret or provide GITHUB_TOKEN permissions."
+            exit 1
+          fi
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
