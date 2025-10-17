@@ -10,6 +10,11 @@ on:
     types: [closed]
     paths:
       - 'docs/**'
+  # Allow manual runs for diagnostics and one-off pushes
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
 
 jobs:
   update-wiki:
@@ -17,6 +22,28 @@ jobs:
     if: ${{ github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.pull_request.merged == true) }}
     runs-on: ubuntu-latest
     steps:
+      - name: Debug: print event info
+        run: |
+          echo "GITHUB_EVENT_NAME=$GITHUB_EVENT_NAME"
+          echo "GITHUB_REF=$GITHUB_REF"
+          echo "GITHUB_SHA=$GITHUB_SHA"
+          echo "Event payload path: $GITHUB_EVENT_PATH"
+          if [ -f "$GITHUB_EVENT_PATH" ]; then echo "--- event payload ---"; cat "$GITHUB_EVENT_PATH"; echo "--- end payload ---"; fi
+
+      - name: Debug: list changed files (best-effort)
+        id: list_changed
+        run: |
+          # fetch enough history to inspect the commit
+          git fetch --no-tags --prune --depth=5 origin "${{ github.ref }}" || true
+          echo "Files changed in this commit/PR:"
+          git --no-pager show --name-only --pretty="" "${{ github.sha }}" || git ls-files | sed -n '1,200p'
+
+      - name: Add changed files to job summary
+        if: always()
+        run: |
+          echo "### Changed files" >> "$GITHUB_STEP_SUMMARY"
+          git --no-pager show --name-only --pretty="" "${{ github.sha }}" >> "$GITHUB_STEP_SUMMARY" || git ls-files | sed -n '1,200p' >> "$GITHUB_STEP_SUMMARY"
+
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
@@ -33,6 +60,7 @@ jobs:
 
       - name: Run wiki init and push
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Use a deploy PAT stored in repository secrets (create secret DEPLOY_WIKI_TOKEN)
+          GITHUB_TOKEN: ${{ secrets.DEPLOY_WIKI_TOKEN }}
         run: |
           node scripts/init-wiki.js --docs docs/wiki
