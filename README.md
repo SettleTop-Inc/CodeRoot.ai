@@ -240,11 +240,3 @@ CodeRoot.ai is licensed commercially with free evaluation through December 31, 2
 Project documentation is available in the GitHub Wiki: [CodeRoot.ai Wiki](https://github.com/SettleTop-Inc/CodeRoot.ai/wiki)
 
 Markdown files placed under `docs/` are automatically published to the wiki when changes are merged into the default branch. Only `.md` files are copied.
-
-Local test (dry run):
-
-```pwsh
-node scripts/init-wiki.js --dry-run
-```
-
-If your organization restricts the default `GITHUB_TOKEN`, a deploy PAT can be stored in repository secrets and the workflow updated to use it.
