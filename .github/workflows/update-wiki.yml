@@ -94,9 +94,6 @@ jobs:
           fi
 
       - name: Comment on PR with changed docs files
-        if: github.event_name == 'pull_re          echo "Using token from: ${{ steps.select_token.outputs.source }}"
-
-      - name: Comment on PR with changed docs files
         if: github.event_name == 'pull_request' && steps.docs_files.outputs.docs_files != '[]'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
