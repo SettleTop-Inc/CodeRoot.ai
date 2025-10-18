@@ -66,6 +66,50 @@ jobs:
             echo "token=${{ secrets.GITHUB_TOKEN }}" >> "$GITHUB_OUTPUT"
           fi
 
+      - name: Print event info
+        run: |
+          echo "GITHUB_EVENT_NAME=$GITHUB_EVENT_NAME"
+          echo "GITHUB_REF=$GITHUB_REF"
+          echo "GITHUB_SHA=$GITHUB_SHA"
+          echo "Event payload path: $GITHUB_EVENT_PATH"
+          if [ -f "$GITHUB_EVENT_PATH" ]; then echo "--- event payload ---"; cat "$GITHUB_EVENT_PATH"; echo "--- end payload ---"; fi
+
+      - name: List changed files (best-effort)
+        id: list_changed
+        run: |
+          git fetch --no-tags --prune --depth=5 origin "${{ github.ref }}" || true
+          echo "Files changed in this commit/PR:"
+          git --no-pager show --name-only --pretty="" "${{ github.sha }}" || git ls-files | sed -n '1,200p'
+
+      - name: Extract docs markdown files
+        id: docs_files
+        run: |
+          files=$(git --no-pager show --name-only --pretty="" "${{ github.sha }}" || git ls-files)
+          docs_md=$(echo "$files" | grep -iE '^docs/.*\.md$' || true)
+          if [ -z "$docs_md" ]; then
+            echo "docs_files=[]" >> "$GITHUB_OUTPUT"
+          else
+            # convert lines to JSON array using jq
+            arr=$(echo "$docs_md" | jq -R -s -c 'split("\n")[:-1]')
+            echo "docs_files=$arr" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Add changed files to job summary
+        if: always()
+        run: |
+          echo "### Changed files" >> "$GITHUB_STEP_SUMMARY"
+          git --no-pager show --name-only --pretty="" "${{ github.sha }}" >> "$GITHUB_STEP_SUMMARY" || git ls-files | sed -n '1,200p' >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Fail early if DEPLOY_WIKI_TOKEN is missing
+        env:
+          DEPLOY_WIKI_TOKEN: ${{ secrets.DEPLOY_WIKI_TOKEN }}
+        run: |
+          if [ -z "$DEPLOY_WIKI_TOKEN" ]; then
+            echo "ERROR: DEPLOY_WIKI_TOKEN is not set; the workflow will not be able to push to the wiki."
+            echo "Create a repository secret named DEPLOY_WIKI_TOKEN containing a PAT with 'Contents: write' or use GITHUB_TOKEN with write permissions."
+            exit 1
+          fi
+
       - name: Echo docs trigger
         run: echo "Update GitHub Wiki workflow triggered for docs/wiki changes"
 
