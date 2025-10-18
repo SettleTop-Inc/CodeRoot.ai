@@ -75,10 +75,23 @@ jobs:
           fi
           TMP_DIR="$(mktemp -d)"
           WIKI_URL="https://x-access-token:${GITHUB_TOKEN}@github.com/${REPO}.wiki.git"
-          echo "Cloning wiki repo"
-          git clone "$WIKI_URL" "$TMP_DIR"
-          echo "Cleaning wiki repo (preserving .git)"
-          find "$TMP_DIR" -mindepth 1 -maxdepth 1 ! -name '.git' -exec rm -rf {} +
+          echo "Attempting to clone wiki repo"
+          if git clone "$WIKI_URL" "$TMP_DIR"; then
+            echo "Cleaning wiki repo (preserving .git)"
+            find "$TMP_DIR" -mindepth 1 -maxdepth 1 ! -name '.git' -exec rm -rf {} +
+          else
+            echo "Wiki repo not found. Auto-initializing..."
+            mkdir -p "$TMP_DIR"
+            git init "$TMP_DIR"
+            git -C "$TMP_DIR" remote add origin "$WIKI_URL"
+            touch "$TMP_DIR/.keep"
+            git -C "$TMP_DIR" add -A
+            git -C "$TMP_DIR" config user.name "${GITHUB_ACTOR:-github-actions}"
+            git -C "$TMP_DIR" config user.email "${GITHUB_ACTOR:-github-actions}@users.noreply.github.com"
+            git -C "$TMP_DIR" commit -m "init wiki"
+            git -C "$TMP_DIR" push -u origin HEAD:master || git -C "$TMP_DIR" push -u origin HEAD:main || git -C "$TMP_DIR" push -u origin HEAD
+            echo "Wiki repo initialized."
+          fi
           echo "Copying markdown from docs/wiki"
           rsync -a --prune-empty-dirs --include='*/' --include='*.md' --exclude='*' docs/wiki/ "$TMP_DIR"/
           cd "$TMP_DIR"
@@ -92,7 +105,6 @@ jobs:
           else
             echo "No changes to publish."
           fi
-          echo "Using token from: ${{ steps.select_token.outputs.source }}"
 
       - name: Comment on PR with changed docs files
         if: github.event_name == 'pull_request' && steps.docs_files.outputs.docs_files != '[]'
