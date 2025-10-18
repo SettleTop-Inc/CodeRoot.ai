@@ -1,13 +1,13 @@
-name: Update Wiki
+name: Update GitHub Wiki
 
 on:
   push:
     branches: [ main ]
-    paths: [ 'docs/**' ]
+    paths: [ 'docs/wiki/**' ]
   workflow_dispatch: {}
 
 jobs:
-  update-wiki:
+  publish-wiki:
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -54,91 +54,46 @@ jobs:
           echo "### Changed files" >> "$GITHUB_STEP_SUMMARY"
           git --no-pager show --name-only --pretty="" "${{ github.sha }}" >> "$GITHUB_STEP_SUMMARY" || git ls-files | sed -n '1,200p' >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Prepare token (optional DEPLOY_WIKI_TOKEN)
-        id: prepare_token
+      - name: Select token
+        id: select_token
         run: |
-          # Prefer an explicit PAT in DEPLOY_WIKI_TOKEN, otherwise fall back to the built-in GITHUB_TOKEN
           if [ -n "${{ secrets.DEPLOY_WIKI_TOKEN }}" ]; then
-            echo "token_type=deploy" >> "$GITHUB_OUTPUT"
             echo "token=${{ secrets.DEPLOY_WIKI_TOKEN }}" >> "$GITHUB_OUTPUT"
+            echo "source=DEPLOY_WIKI_TOKEN" >> "$GITHUB_OUTPUT"
           else
-            echo "token_type=github" >> "$GITHUB_OUTPUT"
             echo "token=${{ secrets.GITHUB_TOKEN }}" >> "$GITHUB_OUTPUT"
+            echo "source=GITHUB_TOKEN" >> "$GITHUB_OUTPUT"
           fi
+          echo "Using token from: ${{ steps.select_token.outputs.source }}"
 
-      - name: Print event info
+      - name: Publish docs/wiki to GitHub Wiki
+        env:
+          GITHUB_TOKEN: ${{ steps.select_token.outputs.token }}
+          REPO: ${{ github.repository }}
         run: |
-          echo "GITHUB_EVENT_NAME=$GITHUB_EVENT_NAME"
-          echo "GITHUB_REF=$GITHUB_REF"
-          echo "GITHUB_SHA=$GITHUB_SHA"
-          echo "Event payload path: $GITHUB_EVENT_PATH"
-          if [ -f "$GITHUB_EVENT_PATH" ]; then echo "--- event payload ---"; cat "$GITHUB_EVENT_PATH"; echo "--- end payload ---"; fi
-
-      - name: List changed files (best-effort)
-        id: list_changed
-        run: |
-          git fetch --no-tags --prune --depth=5 origin "${{ github.ref }}" || true
-          echo "Files changed in this commit/PR:"
-          git --no-pager show --name-only --pretty="" "${{ github.sha }}" || git ls-files | sed -n '1,200p'
-
-      - name: Extract docs markdown files
-        id: docs_files
-        run: |
-          files=$(git --no-pager show --name-only --pretty="" "${{ github.sha }}" || git ls-files)
-          docs_md=$(echo "$files" | grep -iE '^docs/.*\.md$' || true)
-          if [ -z "$docs_md" ]; then
-            echo "docs_files=[]" >> "$GITHUB_OUTPUT"
+          set -e
+          if [ ! -d docs/wiki ]; then
+            echo "docs/wiki not found"; exit 0
+          fi
+          TMP_DIR="$(mktemp -d)"
+          WIKI_URL="https://x-access-token:${GITHUB_TOKEN}@github.com/${REPO}.wiki.git"
+          echo "Cloning wiki repo"
+          git clone "$WIKI_URL" "$TMP_DIR"
+          echo "Cleaning wiki repo (preserving .git)"
+          find "$TMP_DIR" -mindepth 1 -maxdepth 1 ! -name '.git' -exec rm -rf {} +
+          echo "Copying markdown from docs/wiki"
+          rsync -a --prune-empty-dirs --include='*/' --include='*.md' --exclude='*' docs/wiki/ "$TMP_DIR"/
+          cd "$TMP_DIR"
+          git config user.name "${GITHUB_ACTOR:-github-actions}"
+          git config user.email "${GITHUB_ACTOR:-github-actions}@users.noreply.github.com"
+          if [ -n "$(git status --porcelain)" ]; then
+            git add -A
+            git commit -m "Publish docs/wiki to GitHub Wiki"
+            git push origin HEAD:master || git push origin HEAD:main || git push
+            echo "Published changes to GitHub Wiki"
           else
-            # convert lines to JSON array using jq
-            arr=$(echo "$docs_md" | jq -R -s -c 'split("\n")[:-1]')
-            echo "docs_files=$arr" >> "$GITHUB_OUTPUT"
+            echo "No changes to publish."
           fi
-
-      - name: Add changed files to job summary
-        if: always()
-        run: |
-          echo "### Changed files" >> "$GITHUB_STEP_SUMMARY"
-          git --no-pager show --name-only --pretty="" "${{ github.sha }}" >> "$GITHUB_STEP_SUMMARY" || git ls-files | sed -n '1,200p' >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Fail early if DEPLOY_WIKI_TOKEN is missing
-        env:
-          DEPLOY_WIKI_TOKEN: ${{ secrets.DEPLOY_WIKI_TOKEN }}
-        run: |
-          if [ -z "$DEPLOY_WIKI_TOKEN" ]; then
-            echo "ERROR: DEPLOY_WIKI_TOKEN is not set; the workflow will not be able to push to the wiki."
-            echo "Create a repository secret named DEPLOY_WIKI_TOKEN containing a PAT with 'Contents: write' or use GITHUB_TOKEN with write permissions."
-            exit 1
-          fi
-
-      - name: Echo docs trigger
-        run: echo "Update Wiki workflow triggered for docs changes"
-
-      - name: Fail early if DEPLOY_WIKI_TOKEN is missing
-        env:
-          DEPLOY_WIKI_TOKEN: ${{ secrets.DEPLOY_WIKI_TOKEN }}
-        run: |
-          if [ -z "$DEPLOY_WIKI_TOKEN" ]; then
-            echo "WARNING: DEPLOY_WIKI_TOKEN is not set; the workflow will not be able to push to the wiki."
-            echo "Set the DEPLOY_WIKI_TOKEN secret or provide GITHUB_TOKEN permissions."
-            exit 1
-          fi
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '18'
-
-      - name: Run wiki init and push (in workspace)
-        env:
-          # Pass token to the script; prefer DEPLOY_WIKI_TOKEN if provided, else GITHUB_TOKEN
-          DEPLOY_WIKI_TOKEN: ${{ secrets.DEPLOY_WIKI_TOKEN }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # Instruct the script to operate on the checked-out workspace instead of cloning
-          USE_WORKSPACE: 1
-          # Source folder containing the wiki markdown files
-          DOCS_SRC: docs/wiki
-        run: |
-          node scripts/init-wiki.js
 
       - name: Comment on PR with changed docs files
         if: github.event_name == 'pull_request' && steps.docs_files.outputs.docs_files != '[]'
