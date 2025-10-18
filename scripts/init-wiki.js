@@ -152,7 +152,7 @@ async function main() {
     await copyMarkdownRecursive(docsDir, workingDir);
 
     // commit & push
-    exec(`git -C "${tempBase}" add --all`);
+    exec(`git -C "${workingDir}" add --all`);
     const status = execSync(`git -C "${workingDir}" status --porcelain`).toString().trim();
     if (!status) {
       console.log('No changes to commit.');

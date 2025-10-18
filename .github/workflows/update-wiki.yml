@@ -1,13 +1,13 @@
-name: Update Wiki
+name: Update GitHub Wiki
 
 on:
   push:
     branches: [ main ]
-    paths: [ 'docs/**' ]
+    paths: [ 'docs/wiki/**' ]
   workflow_dispatch: {}
 
 jobs:
-  update-wiki:
+  publish-wiki:
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -111,34 +111,48 @@ jobs:
           fi
 
       - name: Echo docs trigger
-        run: echo "Update Wiki workflow triggered for docs changes"
+        run: echo "Update GitHub Wiki workflow triggered for docs/wiki changes"
 
-      - name: Fail early if DEPLOY_WIKI_TOKEN is missing
-        env:
-          DEPLOY_WIKI_TOKEN: ${{ secrets.DEPLOY_WIKI_TOKEN }}
+      - name: Select token
+        id: select_token
         run: |
-          if [ -z "$DEPLOY_WIKI_TOKEN" ]; then
-            echo "WARNING: DEPLOY_WIKI_TOKEN is not set; the workflow will not be able to push to the wiki."
-            echo "Set the DEPLOY_WIKI_TOKEN secret or provide GITHUB_TOKEN permissions."
-            exit 1
+          if [ -n "${{ secrets.DEPLOY_WIKI_TOKEN }}" ]; then
+            echo "token=${{ secrets.DEPLOY_WIKI_TOKEN }}" >> "$GITHUB_OUTPUT"
+            echo "source=DEPLOY_WIKI_TOKEN" >> "$GITHUB_OUTPUT"
+          else
+            echo "token=${{ secrets.GITHUB_TOKEN }}" >> "$GITHUB_OUTPUT"
+            echo "source=GITHUB_TOKEN" >> "$GITHUB_OUTPUT"
           fi
+          echo "Using token from: ${{ steps.select_token.outputs.source }}"
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '18'
-
-      - name: Run wiki init and push (in workspace)
+      - name: Publish docs/wiki to GitHub Wiki
         env:
-          # Pass token to the script; prefer DEPLOY_WIKI_TOKEN if provided, else GITHUB_TOKEN
-          DEPLOY_WIKI_TOKEN: ${{ secrets.DEPLOY_WIKI_TOKEN }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # Instruct the script to operate on the checked-out workspace instead of cloning
-          USE_WORKSPACE: 1
-          # Source folder containing the wiki markdown files
-          DOCS_SRC: docs/wiki
+          GITHUB_TOKEN: ${{ steps.select_token.outputs.token }}
+          REPO: ${{ github.repository }}
         run: |
-          node scripts/init-wiki.js
+          set -e
+          if [ ! -d docs/wiki ]; then
+            echo "docs/wiki not found"; exit 0
+          fi
+          TMP_DIR="$(mktemp -d)"
+          WIKI_URL="https://x-access-token:${GITHUB_TOKEN}@github.com/${REPO}.wiki.git"
+          echo "Cloning wiki repo"
+          git clone "$WIKI_URL" "$TMP_DIR"
+          echo "Cleaning wiki repo (preserving .git)"
+          find "$TMP_DIR" -mindepth 1 -maxdepth 1 ! -name '.git' -exec rm -rf {} +
+          echo "Copying markdown from docs/wiki"
+          rsync -a --prune-empty-dirs --include='*/' --include='*.md' --exclude='*' docs/wiki/ "$TMP_DIR"/
+          cd "$TMP_DIR"
+          git config user.name "${GITHUB_ACTOR:-github-actions}"
+          git config user.email "${GITHUB_ACTOR:-github-actions}@users.noreply.github.com"
+          if [ -n "$(git status --porcelain)" ]; then
+            git add -A
+            git commit -m "Publish docs/wiki to GitHub Wiki"
+            git push origin HEAD:master || git push origin HEAD:main || git push
+            echo "Published changes to GitHub Wiki"
+          else
+            echo "No changes to publish."
+          fi
 
       - name: Comment on PR with changed docs files
         if: github.event_name == 'pull_request' && steps.docs_files.outputs.docs_files != '[]'
@@ -165,27 +179,14 @@ jobs:
 
       - name: Post final publish comment
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ steps.select_token.outputs.token }}
           DOCS_FILES: ${{ steps.docs_files.outputs.docs_files }}
         run: |
-          # Compose the final message with links, timestamp, and run URL
           owner=$(echo "$GITHUB_REPOSITORY" | cut -d'/' -f1)
           repo=$(echo "$GITHUB_REPOSITORY" | cut -d'/' -f2)
-          branch_url="https://github.com/$owner/$repo/tree/wiki"
           run_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
           timestamp=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-
-          files_json="$DOCS_FILES"
-          if [ "$files_json" = "[]" ] || [ -z "$files_json" ]; then
-            files_section="(no markdown docs changed)"
-          else
-            # Build markdown links pointing to files on the wiki branch
-            files_section=$(echo "$files_json" | jq -r --arg repo "$owner/$repo" '.[] | "- [\(. )](https://github.com/" + $repo + "/blob/wiki/" + .)')
-          fi
-
-          message="### Docs published to wiki branch\n\n$branch_url\n\n**Changed files:**\n$files_section\n\nPublished at: $timestamp\nRun: $run_url"
-
-          # If this was a PR, comment on the PR; otherwise just echo
+          message="### Docs published to GitHub Wiki\n\nhttps://github.com/$owner/$repo/wiki\n\nPublished at: $timestamp\nRun: $run_url"
           pr_number=$(jq -r '.pull_request.number // empty' "$GITHUB_EVENT_PATH")
           if [ -n "$pr_number" ]; then
             payload=$(jq -n --arg body "$message" '{body: $body}')
