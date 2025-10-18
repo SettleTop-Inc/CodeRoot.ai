@@ -17,6 +17,54 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          # Allow the checked-out repository to use the workflow's token for push/fetch
+          persist-credentials: true
+
+      - name: Print event info
+        run: |
+          echo "GITHUB_EVENT_NAME=$GITHUB_EVENT_NAME"
+          echo "GITHUB_REF=$GITHUB_REF"
+          echo "GITHUB_SHA=$GITHUB_SHA"
+          echo "Event payload path: $GITHUB_EVENT_PATH"
+          if [ -f "$GITHUB_EVENT_PATH" ]; then echo "--- event payload ---"; cat "$GITHUB_EVENT_PATH"; echo "--- end payload ---"; fi
+
+      - name: List changed files (best-effort)
+        id: list_changed
+        run: |
+          git fetch --no-tags --prune --depth=5 origin "${{ github.ref }}" || true
+          echo "Files changed in this commit/PR:"
+          git --no-pager show --name-only --pretty="" "${{ github.sha }}" || git ls-files | sed -n '1,200p'
+
+      - name: Extract docs markdown files
+        id: docs_files
+        run: |
+          files=$(git --no-pager show --name-only --pretty="" "${{ github.sha }}" || git ls-files)
+          docs_md=$(echo "$files" | grep -iE '^docs/.*\.md$' || true)
+          if [ -z "$docs_md" ]; then
+            echo "docs_files=[]" >> "$GITHUB_OUTPUT"
+          else
+            # convert lines to JSON array using jq
+            arr=$(echo "$docs_md" | jq -R -s -c 'split("\n")[:-1]')
+            echo "docs_files=$arr" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Add changed files to job summary
+        if: always()
+        run: |
+          echo "### Changed files" >> "$GITHUB_STEP_SUMMARY"
+          git --no-pager show --name-only --pretty="" "${{ github.sha }}" >> "$GITHUB_STEP_SUMMARY" || git ls-files | sed -n '1,200p' >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Prepare token (optional DEPLOY_WIKI_TOKEN)
+        id: prepare_token
+        run: |
+          # Prefer an explicit PAT in DEPLOY_WIKI_TOKEN, otherwise fall back to the built-in GITHUB_TOKEN
+          if [ -n "${{ secrets.DEPLOY_WIKI_TOKEN }}" ]; then
+            echo "token_type=deploy" >> "$GITHUB_OUTPUT"
+            echo "token=${{ secrets.DEPLOY_WIKI_TOKEN }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "token_type=github" >> "$GITHUB_OUTPUT"
+            echo "token=${{ secrets.GITHUB_TOKEN }}" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Print event info
         run: |
@@ -80,17 +128,22 @@ jobs:
         with:
           node-version: '18'
 
-      - name: Run wiki init and push
+      - name: Run wiki init and push (in workspace)
         env:
+          # Pass token to the script; prefer DEPLOY_WIKI_TOKEN if provided, else GITHUB_TOKEN
           DEPLOY_WIKI_TOKEN: ${{ secrets.DEPLOY_WIKI_TOKEN }}
-          GITHUB_TOKEN: ${{ secrets.DEPLOY_WIKI_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Instruct the script to operate on the checked-out workspace instead of cloning
+          USE_WORKSPACE: 1
+          # Source folder containing the wiki markdown files
+          DOCS_SRC: docs/wiki
         run: |
           node scripts/init-wiki.js
 
       - name: Comment on PR with changed docs files
         if: github.event_name == 'pull_request' && steps.docs_files.outputs.docs_files != '[]'
         env:
-          GITHUB_TOKEN: ${{ secrets.DEPLOY_WIKI_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           DOCS_FILES: ${{ steps.docs_files.outputs.docs_files }}
         run: |
           # Extract PR number and head SHA from the event payload at runtime
@@ -112,7 +165,7 @@ jobs:
 
       - name: Post final publish comment
         env:
-          GITHUB_TOKEN: ${{ secrets.DEPLOY_WIKI_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           DOCS_FILES: ${{ steps.docs_files.outputs.docs_files }}
         run: |
           # Compose the final message with links, timestamp, and run URL

@@ -68,10 +68,13 @@ async function listMarkdownFiles(root) {
 async function main() {
   const scriptDir = path.dirname(__filename);
   const repoRoot = path.resolve(scriptDir, '..');
-  const docsDir = path.resolve(repoRoot, 'docs');
+  // Allow overriding the docs source path via DOCS_SRC (relative to repo root)
+  const docsSrc = process.env.DOCS_SRC || 'docs';
+  const docsDir = path.resolve(repoRoot, docsSrc);
   const tempBase = path.join(os.tmpdir(), 'coderoot-wiki-clone-' + Date.now());
   const branch = 'wiki';
   const isDry = !!process.env.DRY_RUN || process.env.DRY_RUN === '1';
+  const useWorkspace = !!process.env.USE_WORKSPACE || process.env.USE_WORKSPACE === '1';
 
   console.log('Repo root:', repoRoot);
   console.log('Docs dir:', docsDir);
@@ -107,29 +110,80 @@ async function main() {
       await fsp.rm(tempBase, { recursive: true, force: true });
     }
 
-    // Clone the main repository and push docs into the wiki branch
+    // Decide whether to operate in the checked-out workspace or clone into a temp dir
     const repoUrl = execSync(`git -C "${repoRoot}" remote get-url origin`).toString().trim();
-    console.log('Cloning repository:', repoUrl, 'to', tempBase);
-    exec(`git clone "${repoUrl}" "${tempBase}"`, { mask: `git clone "${repoUrl}" "${tempBase}"` });
+    let workingDir = tempBase;
+    if (useWorkspace) {
+      console.log('Using checked-out workspace at', repoRoot, 'to perform branch operations (no second clone).');
+      workingDir = repoRoot;
+    } else {
+      // If running in CI and a token is available, embed it into the clone URL so git push can authenticate.
+      let cloneUrl = repoUrl;
+      if (isCI && process.env.GITHUB_TOKEN && repoUrl.startsWith('https://')) {
+        // Use the token in the URL in the form https://x-access-token:TOKEN@github.com/owner/repo.git
+        const token = process.env.GITHUB_TOKEN;
+        cloneUrl = repoUrl.replace(/^https:\/\//, `https://x-access-token:${token}@`);
+      }
+      console.log('Cloning repository:', repoUrl, 'to', tempBase);
+      // Mask the token in logs when present
+      const maskedClone = cloneUrl.replace(/https:\/\/x-access-token:(?:[^@]+)@/, 'https://x-access-token:<REDACTED>@');
+      exec(`git clone "${cloneUrl}" "${tempBase}"`, { mask: `git clone "${maskedClone}" "${tempBase}"` });
+    }
 
     // checkout or create wiki branch
-    exec(`git -C "${tempBase}" fetch origin ${branch}:${branch} || true`);
-    // create branch if it doesn't exist
-    exec(`git -C "${tempBase}" checkout -B ${branch}`);
+    // operate against the selected workingDir (either temp clone or workspace)
+    exec(`git -C "${workingDir}" fetch origin ${branch}:${branch} || true`);
+    // create branch if it doesn't exist; save current ref to restore if using workspace
+    let originalRef = null;
+    if (useWorkspace) {
+      try {
+        originalRef = execSync(`git -C "${workingDir}" rev-parse --abbrev-ref HEAD`).toString().trim();
+      } catch (e) {
+        originalRef = null;
+      }
+    }
+    exec(`git -C "${workingDir}" checkout -B ${branch}`);
 
     // remove everything except .git
     console.log('Cleaning working tree (preserving .git)...');
-    await removeAllButGit(tempBase);
+    await removeAllButGit(workingDir);
 
     console.log('Copying markdown files to branch...');
-    await copyMarkdownRecursive(docsDir, tempBase);
+    await copyMarkdownRecursive(docsDir, workingDir);
 
     // commit & push
     exec(`git -C "${tempBase}" add --all`);
-    const status = execSync(`git -C "${tempBase}" status --porcelain`).toString().trim();
-    if (!status) { console.log('No changes to commit.'); return; }
-    exec(`git -C "${tempBase}" commit -m "chore(docs): update wiki branch from docs/" || true`);
-    exec(`git -C "${tempBase}" push origin ${branch}`, { mask: `git -C "${tempBase}" push origin ${branch}` });
+    const status = execSync(`git -C "${workingDir}" status --porcelain`).toString().trim();
+    if (!status) {
+      console.log('No changes to commit.');
+      // If we used the workspace, try to restore original ref
+      if (useWorkspace && originalRef) {
+        try { exec(`git -C "${workingDir}" checkout "${originalRef}"`); } catch (e) { /* ignore */ }
+      }
+      return;
+    }
+    // Ensure git author identity is set in the temporary clone so commits succeed in CI
+    try {
+      const gitUserName = process.env.GIT_USER_NAME || process.env.GIT_COMMITTER_NAME || process.env.GITHUB_ACTOR || 'github-actions';
+      const gitUserEmail = process.env.GIT_USER_EMAIL || process.env.GIT_COMMITTER_EMAIL || `${process.env.GITHUB_ACTOR || 'github-actions'}@users.noreply.github.com`;
+      exec(`git -C "${workingDir}" config user.name "${gitUserName}"`);
+      exec(`git -C "${workingDir}" config user.email "${gitUserEmail}"`);
+    } catch (e) {
+      console.warn('Warning: failed to set git user identity in temp clone:', e && e.message ? e.message : e);
+    }
+
+    exec(`git -C "${workingDir}" commit -m "chore(docs): update wiki branch from docs/" || true`);
+    // Mask push so token doesn't leak in logs
+    exec(`git -C "${workingDir}" push origin ${branch}`, { mask: `git -C "${workingDir}" push origin ${branch} (token redacted)` });
+
+    // If we modified the workspace, attempt to restore the original branch/ref
+    if (useWorkspace && originalRef) {
+      try {
+        exec(`git -C "${workingDir}" checkout "${originalRef}"`);
+      } catch (e) {
+        console.warn('Warning: failed to restore original branch/ref:', originalRef, e && e.message ? e.message : e);
+      }
+    }
     console.log('Docs branch updated successfully.');
   } catch (err) {
     console.error('Failed to update wiki branch:', err && err.message ? err.message : err);
