@@ -1,9 +1,6 @@
-# Provenance Composition Model (PCM)
-##### Public summary and quick verification
 > **Schema version:** v1.1.7
 
-**One-liner:**
-PCM records *how files changed* (where, by whom, and by what kind of action) without storing your source code.
+The PCM records *how files changed* (where, by whom, and by what kind of action) without storing your source code.
 
 ---
 
