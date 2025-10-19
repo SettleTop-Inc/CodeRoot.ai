@@ -1,6 +1,6 @@
 # Commands
 
-This page lists the primary VS Code commands registered by the CodeRoot extension and what they do.
+This page lists primary CodeRoot.ai commands available in VS Code and what they do.
 
 
 Commands and quick examples

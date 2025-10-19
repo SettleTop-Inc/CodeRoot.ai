@@ -15,7 +15,7 @@ Data shapes and storage:
 
 Maintenance & CI helpers:
 
-- The extension includes helpers to seed or repair `.github` CI assets when `coderoot.ci.maintenance.enabled` is set. See `src/extension.ts` commands for toggling and the `scripts/init-wiki.js` for repository wiki publishing.
+- The extension includes helpers to seed or repair `.github` CI assets when `coderoot.ci.maintenance.enabled` is set.
 
 Architecture (expanded)
 
