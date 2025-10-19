@@ -1,32 +1,21 @@
-# CodeRoot.ai — Project Home
+# CodeRoot.ai — Home
 
-Welcome to CodeRoot.ai (CodeRoot-Core). This repository contains the VS Code extension and core libraries that capture, track, and report on code provenance, edits, and AI interactions using the PCM journal format.
+Description: CodeRoot.ai repository
+Version: 0.0.0
 
-Key resources
+What it is
 
+CodeRoot.ai provides a local-first, deterministic lens on creation in your codebase — Human vs AI vs Untracked — so teams can discuss outcomes with facts, not anecdotes.
 
-Start here (one-screen):
+Start here
 
-1. Read this page (you are here).
-2. Review Installation.md for local setup and dry-run commands.
-3. Use Commands.md to learn the extension actions you can run from VS Code.
-4. Read PCM_1.1.7_Summary.md for a short explanation of the data model.
+- Read Installation.md for how to get the commercial extension
+- See Commands.md for common actions
+- Review PCM_1.1.7_Summary.md for the on-disk format we emit
 
 Glossary (short)
 
-- PCM: Provenance Composition Map — newline-delimited events describing edits.
-- Journal: JSONL event logs under `.coderoot/v1/files/`.
-- Snapshot: computed per-file `.pcm.json` under `.coderoot/v1/snapshots/`.
-
-Start here checklist
-
-1. Open this repo in VS Code.
-2. Run: `node scripts/init-wiki.js --docs docs/wiki --dry-run` to verify wiki pages are ready. (Dry-run only.)
-3. Use the quick commands in `Commands.md` for local actions.
-
-Safe-use reminder
-
-> Warning: always run the wiki script with `--dry-run` first. Do not push wiki changes from an environment you do not control.
-
-See the other pages below for details.
+- Human: deliberate human edits
+- AI: AI-assisted creation and changes
+- Untracked: unknown or missing attribution to follow up
 
