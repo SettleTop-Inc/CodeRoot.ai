@@ -1,4 +1,4 @@
-> **Schema version:** v1.1.7
+> **Schema version:** v1.1.8
 
 The PCM records *how files changed* (where, by whom, and by what kind of action) without storing your source code.
 
@@ -18,7 +18,11 @@ Teams want trustworthy insight into file composition (e.g., human vs. AI effort,
 * **Who**: An **actor** (e.g., user/bot/system), using opaque identifiers.
 * **Origin**: Was it **human**, **ai**, or **untracked**?
 
-> **Text-free by design:** PCM stores counts and hashes, **never** the edited text itself.
+  * **ai** — AI suggestion/application
+  * **human** — typing, paste, manual edits
+  * **observed** — observed tool output
+  * **untracked** — when origin can't be determined
+  * **external** — external edits or unknown attribution
 
 ---
 
@@ -36,14 +40,15 @@ Teams want trustworthy insight into file composition (e.g., human vs. AI effort,
 
 | Operation  | Typical meaning                            | Size fields present                    |
 | ---------- | ------------------------------------------ | -------------------------------------- |
-| `insert`   | New content added                          | `introduced`                           |
-| `replace`  | Old content replaced by new                | `deleted` + `introduced`               |
-| `delete`   | Content removed                            | `deleted`                              |
-| `paste`    | Pasted content (treated as a human action) | `introduced`                           |
-| `ai_apply` | AI suggestion applied                      | `introduced` (and sometimes `deleted`) |
-| `format`   | Automated formatting                       | Usually size-neutral                   |
-| `tooling`  | Tool-driven change (e.g., refactor)        | Varies                                 |
-
+| `insert`   | New content added                          | `introduced`               |
+| `replace`   | Old content replaced by new                          | `deleted` + `introduced`               |
+| `delete`   | Content removed                          | `deleted`               |
+| `paste`   | Pasted content (treated as a human action)                          | `introduced`               |
+| `ai_apply`   | AI suggestion applied                          | `introduced` (and sometimes `deleted`)               |
+| `format`   | Automated formatting                          | Usually size-neutral               |
+| `tooling`   | Tool-driven change (e.g., refactor)                          | Varies               |
+| `rename`   | File renamed                          | N/A               |
+| `move`   | File moved                          | N/A               |
 ---
 
 ## Actors & origin (practical guidance)
@@ -86,7 +91,7 @@ These power reports (e.g., “% human vs. AI”) **without** exposing any code.
 
 ```json
 {
-  "schema_version": "1.1.7",
+  "schema_version": "1.1.8",
   "record_type": "pcm_event",
   "event_id": "e-123",
   "file_path": "src/example.txt",
@@ -106,7 +111,7 @@ These power reports (e.g., “% human vs. AI”) **without** exposing any code.
 
 ```json
 {
-  "schema_version": "1.1.7",
+  "schema_version": "1.1.8",
   "file_path": "src/example.txt",
   "updated_at": "2025-10-07T00:00:00Z",
   "spans": [
