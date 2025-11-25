@@ -3,7 +3,7 @@
 High-level pipeline:
 
 1. Writers: The extension instruments editor and file system events and appends PCM events to `.coderoot/v1/files/<rel>.xform.jsonl` (rotated by size).
-2. Snapshot builder: `snapshotBuilder.buildSnapshotFromJournal()` consumes rotated journal files and materializes a per-file snapshot under `.coderoot/v1/snapshots/<rel>.pcm.json` (schema_version 1.1.7).
+2. Snapshot builder: `snapshotBuilder.buildSnapshotFromJournal()` consumes rotated journal files and materializes a per-file snapshot under `.coderoot/v1/snapshots/<rel>.pcm.json` (schema_version 1.1.8).
 3. Index & manifest: `indexManifest.writeManifest()` writes a small repository-level manifest used by reporters and maintenance tasks.
 4. Reporter: `report.generateReport()` locates `assets/ci-reporter.mjs` and executes `generateReport(workspaceRoot)` to produce JSON and Markdown outputs.
 

@@ -9,8 +9,7 @@ Get the extension
 
 Quick start
 
-1. Open a Git repository in VS Code
-2. Run “CodeRoot: Initialize CodeRoot” from the Command Palette
+1. Open a Git repository in VS Code 1.90.0 Run “CodeRoot: Initialize CodeRoot” from the Command Palette
 3. Run “CodeRoot: Generate Report” to open your first report
 
 Requirements

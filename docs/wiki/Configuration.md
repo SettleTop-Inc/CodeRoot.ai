@@ -61,7 +61,7 @@ Aggregation (rollup)
 | aggregation.merge_window_ms                    | Merge nearby edits                                 | ~1500          | Increase for chatty tools |
 | aggregation.format_merge_ms                    | Merge formatter edits                              | ~3000          | As above |
 | aggregation.command_merge_ms                   | Merge command-triggered edits                      | ~3000          | As above |
-| aggregation.ai_block_min_chars                 | Threshold for large AI apply                       | ~200 chars     | Tweak for your AI usage |
+| aggregation.ai_block_min_chars                 | ~~Threshold for large AI apply~~ **DEPRECATED: Metadata-only** | ~200 chars     | No longer used for classification |
 | aggregation.ai_prewindow_ms_for_large_apply    | Pre-window for large AI apply                      | ~5000 ms       | Advanced tuning |
 | aggregation.ai_merge_ms_for_large_apply        | Merge window for large AI apply                    | ~10000 ms      | Advanced tuning |
 | aggregation.human_high_tcs_threshold           | High typing-confidence threshold                   | ~0.6           | Advanced tuning |
@@ -87,6 +87,7 @@ Report (presentation)
 | report.version_mix.threshold_pct  | Threshold for mixed versions                 | ~10                                            | Policy-based |
 | report.version_mix.grace_days     | Grace period before flagging                 | ~14                                            | Policy-based |
 | report.version_mix.legacy_versions| List of legacy versions                      | e.g., 1.1.3–1.1.5                              | As needed |
+| report.current_version | Current release version (string) | e.g., 1.1.7 — should correspond to active config schema version | Optional |
 | report.timeModel                  | Time attribution model                       | constant, weighted                             | Preference |
 | report.weights.*                  | Weights for time model                       | human/ai_apply/tooling/journal                  | Advanced |
 | report.toolingBurst.enabled       | Cap tooling bursts                           | false/true                                     | Enable to cap tooling time |
@@ -142,12 +143,12 @@ Detectors (format/paste/tooling/AI)
 | detectors.format_after_save_window_ms | Window after save for format detection      | ~350 ms        | Tuning only |
 | detectors.tooling_multi_range_min     | Multiple ranges → likely tooling            | ~5             | Tuning only |
 | detectors.tooling_scatter_min         | Scattered edits → likely tooling            | ~16            | Tuning only |
-| detectors.paste_min_chars             | Minimum chars to consider a paste           | ~30            | Tuning only |
+| detectors.paste_min_chars             | ~~Minimum chars to consider a paste~~ **DEPRECATED: Metadata-only** | ~30            | No longer used for classification |
 | detectors.paste_clipboard_probe       | Clipboard probe mode                        | off, hash      | Keep hash |
 | detectors.paste_clipboard_window_ms   | Window to link clipboard to paste           | ~1500 ms       | Tuning only |
 | detectors.paste_hash_algo             | Hash algorithm for clipboard                | sha256         | Fixed |
-| detectors.ai_block_min_chars          | Min chars to treat as AI block              | ~120           | Tuning only |
-| detectors.ai_dual_block_chars         | Second threshold for dual blocks            | ~80            | Tuning only |
+| detectors.ai_block_min_chars          | ~~Min chars to treat as AI block~~ **DEPRECATED: Metadata-only** | ~120           | No longer used for classification |
+| detectors.ai_dual_block_chars         | ~~Second threshold for dual blocks~~ **DEPRECATED: Metadata-only** | ~80            | No longer used for classification |
 | detectors.ai_structure_threshold      | Structure threshold                         | ~0.7           | Tuning only |
 | detectors.stream_adaptive             | Adaptive streaming detection                 | true/false     | Advanced |
 | detectors.stream_lines_min            | Min lines for streaming detect               | ~3             | Advanced |

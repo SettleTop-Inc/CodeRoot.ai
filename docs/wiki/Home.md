@@ -1,7 +1,7 @@
 # CodeRoot.ai — Home
 
 Description: CodeRoot.ai repository
-Version: 0.0.0
+version: 0.5.0
 
 What it is
 
@@ -11,7 +11,7 @@ Start here
 
 - Read Installation.md for how to get the commercial extension
 - See Commands.md for common actions
-- Review PCM_1.1.7_Summary.md for the on-disk format we emit
+- Review PCM 1.1.8_Summary.md for the on-disk format we emit
 
 Glossary (short)
 
