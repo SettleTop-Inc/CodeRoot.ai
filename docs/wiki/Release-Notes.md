@@ -2,7 +2,7 @@
 
 ## Version 0.5.0 — Enhanced Features
 
-**Release Date:** 2025-11-25  
+**Release Date:** 2025-11-26  
 **VS Code Minimum Version:** 1.90.0  
 **PCM Version:** 1.1.8  
 **Supported PCM Releases:** 1.1.3, 1.1.4, 1.1.5, 1.1.6, 1.1.7
