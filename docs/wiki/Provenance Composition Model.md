@@ -20,7 +20,11 @@ Teams want trustworthy insight into file composition (e.g., human vs. AI effort,
 * **Category** (PCM 1.1.8): Broader classification: `human`, `automation`, `preexisting`, or `out_of_band`.
 * **Subtype** (PCM 1.1.8): Specific type when determinable: `ai`, `ai_assisted`, `tooling`, `format`, `generator`, `bootstrap`, `codemod`.
 
-> **Text-free by design:** PCM stores counts and hashes, **never** the edited text itself.
+  * **ai** — AI suggestion/application
+  * **human** — typing, paste, manual edits
+  * **observed** — observed tool output
+  * **untracked** — when origin can't be determined
+  * **external** — external edits or unknown attribution
 
 ---
 
